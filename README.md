@@ -148,3 +148,8 @@ Detailed case-study notes and analysis are available in the docs folder:
 - This app is designed for local use on a desktop machine.
 - The frontend uses a restricted preload bridge and validates input before passing it to the backend.
 - The backend implementation is intentionally separated from the UI to keep the solving logic independent and testable.
+
+## License
+
+This project is licensed under the Apache License 2.0.
+See the [LICENSE](LICENSE) file for details.
