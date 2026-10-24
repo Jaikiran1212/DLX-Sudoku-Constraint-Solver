@@ -17,14 +17,31 @@ The repository is structured to separate:
 DLX-Sudoku-Constraint-Solver/
 ├── README.md
 ├── .gitignore
+├── LICENSE
 ├── package.json
 ├── package-lock.json
+├── backend/
+│   ├── CMakeLists.txt
+│   ├── Update info
+│   ├── include/
+│   │   ├── dancing_links.h
+│   │   └── sudoku_solver.h
+│   └── src/
+│       ├── dancing_links.cpp
+│       ├── main.cpp
+│       └── sudoku_solver.cpp
+├── docs/
+│   ├── architecture.md
+│   ├── time_complexity.md
+│   └── viva_questions.md
+├── examples/
+│   └── sample_puzzles.txt
 ├── frontend/
 │   ├── index.html
-│   ├── styles.css
 │   ├── main.js
 │   ├── preload.js
 │   ├── renderer.js
+│   ├── styles.css
 │   ├── js/
 │   │   ├── algo-engine.js
 │   │   ├── algo-view.js
@@ -32,8 +49,8 @@ DLX-Sudoku-Constraint-Solver/
 │   │   ├── dlx-trace.js
 │   │   ├── explain.js
 │   │   ├── export.js
-│   │   ├── generator-worker.js
 │   │   ├── generator.js
+│   │   ├── generator-worker.js
 │   │   ├── grid.js
 │   │   ├── history.js
 │   │   ├── input.js
@@ -48,29 +65,13 @@ DLX-Sudoku-Constraint-Solver/
 │   │   ├── toast.js
 │   │   └── validation.js
 │   └── tests/
-├── backend/
-│   ├── CMakeLists.txt
-│   ├── include/
-│   │   ├── dancing_links.h
-│   │   └── sudoku_solver.h
-│   ├── src/
-│   │   ├── dancing_links.cpp
-│   │   ├── sudoku_solver.cpp
-│   │   └── main.cpp
-│   └── build/
-├── docs/
-│   ├── architecture.md
-│   ├── time_complexity.md
-│   └── viva_questions.md
-├── examples/
+│       └── run-tests.js
 ├── tests/
-│   ├── test_sudoku.cpp
-│   └── test_cases.txt
-├── frontend_issues_and_suggestions_V1.txt
-├── frontend_issues_and_suggestions_V2.txt
-├── frontend_issues_and_suggestions_V3.txt
-└── .vscode/
+│   ├── test_cases.txt
+│   └── test_sudoku.cpp
 ```
+
+The generated `backend/build/` directory is excluded from the repository.
 
 ## Tech stack
 
