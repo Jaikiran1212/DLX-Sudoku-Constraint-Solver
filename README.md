@@ -1,6 +1,6 @@
 # DLX Sudoku Constraint Solver
 
-[![CI](https://github.com/Jaikiran1212/DLX-Sudoku-Constraint-Solver/actions/workflows/ci.yml/badge.svg?branch=migrate-final-dlx-solver)](https://github.com/Jaikiran1212/DLX-Sudoku-Constraint-Solver/actions/workflows/ci.yml?query=branch%3Amigrate-final-dlx-solver)
+[![CI](https://github.com/Jaikiran1212/DLX-Sudoku-Constraint-Solver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Jaikiran1212/DLX-Sudoku-Constraint-Solver/actions/workflows/ci.yml?query=branch%3Amain)
 
 A browser-based 9×9 Sudoku solver powered by a C++20 backend implementing Knuth's Algorithm X with Dancing Links (DLX). The frontend is plain HTML, CSS, and JavaScript; the backend exposes a JSON REST API using Drogon.
 
@@ -110,7 +110,7 @@ npm run test:ui
 | `npm run test:api` | Real HTTP endpoint contract, validation, CORS, concurrency, solver responses |
 | `npm run test:ui` | Browser UI smoke tests against a running C++ backend |
 
-GitHub Actions runs the same test suites on pushes to `main` and `migrate-final-dlx-solver`, and on pull requests targeting `main`. The workflow also builds the Docker image used for the hosted backend.
+GitHub Actions runs the same test suites on pushes to `main` and on pull requests targeting `main`. The workflow also builds the Docker image used for the hosted backend.
 
 ## API overview
 
@@ -150,6 +150,21 @@ The hosted Vercel frontend calls its own origin; Vercel forwards API requests to
 
 The solver API is currently unauthenticated and does not implement application accounts or server-side data storage. The hosted service is suitable as a demo; add appropriate rate limits and abuse protection before relying on it for high-volume public traffic.
 
+## Contributing
+
+Bug reports, documentation improvements, and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## Security
+
+For responsible vulnerability reporting, see [SECURITY.md](SECURITY.md).
+
+## Documentation
+
+- [HTTP API reference](docs/API.md)
+- [Architecture and data flow](docs/ARCHITECTURE.md)
+- [Contribution workflow](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+
 ## License
 
-See [LICENSE](LICENSE) for the project's license terms.
+This project is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for the full terms. The license includes an express patent grant; third-party dependencies remain under their respective licenses.
