@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software in your work, please cite it using the metadata below."
+title: "DLX Sudoku Constraint Solver"
+type: software
+authors:
+  - family-names: J.
+    given-names: Jaikiran
+repository-code: "https://github.com/Jaikiran1212/DLX-Sudoku-Constraint-Solver"
+url: "https://dlx-sudoku-solver.vercel.app"
+license: Apache-2.0
+version: 1.0.0
