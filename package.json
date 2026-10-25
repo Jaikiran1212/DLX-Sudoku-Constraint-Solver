@@ -1,15 +1,16 @@
 {
-  "name": "dlx-sudoku-constraint-solver",
-  "version": "1.0.0",
-  "description": "Sudoku & Constraint Solver using Dancing Links (DLX) and Algorithm X",
-  "main": "frontend/main.js",
+  "name": "dlx-solver-workspace",
+  "private": true,
+  "description": "Tooling for the DLX Solver: a plain-JS frontend (no build step) and a C++ (Drogon) backend.",
   "scripts": {
-    "start": "electron .",
-    "build:backend": "cmake -S backend -B backend/build -DCMAKE_BUILD_TYPE=Release && cmake --build backend/build --config Release",
-    "test:backend": "ctest --test-dir backend/build -C Release --output-on-failure"
+    "test:frontend": "node frontend/tests/run-tests.js",
+    "test:api": "bash scripts/test-api.sh",
+    "test:ui": "bash scripts/test-ui.sh",
+    "backend:build": "bash scripts/build-backend.sh",
+    "backend:test": "ctest --test-dir backend/build --output-on-failure",
+    "start": "bash scripts/run.sh"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
-  },
-  "license": "Apache-2.0"
+    "jsdom": "^26.0.0"
+  }
 }

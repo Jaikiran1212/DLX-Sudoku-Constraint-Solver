@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug backend (LLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/build/dlx_server",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": { "DLX_STATIC_DIR": "${workspaceFolder}/frontend" },
+      "preLaunchTask": "Build backend"
+    }
+  ]
+}

@@ -1,4 +1,9 @@
-/* "Algorithmic visualisation": a full-screen view of the Dancing Links structure.
+/* "Algorithmic visualisation": a full-screen view of Dancing Links, in three views.
+ *   9x9 grid   : the board itself as a mesh of squares (r,c), each with L/R/U/D pointers (default)
+ *   Matrix     : the textbook exact-cover matrix, either a 7-column sample or the current puzzle
+ * (the matrix description follows)
+ *
+ * Matrix view: a full-screen view of the Dancing Links structure.
  * It draws the header h, the column headers (name:size), the nodes and their four pointers
  * (L red, R green, U orange, D blue) as in a textbook diagram, and steps Algorithm X one
  * pointer at a time. The pointer being read or written glows. The arrows are drawn from the
@@ -9,6 +14,7 @@
   'use strict';
   const DLX = window.DLX;
   const A = DLX.algo;
+  const G = DLX.algoGrid;
   const $ = (id) => document.getElementById(id);
 
   const BASE_RATE = 3;        // pointer steps per second at 1x
@@ -19,30 +25,44 @@
     sample: { gx: 170, gy: 150, node: 17, head: [46, 46], root: [28, 28], font: 26, xL: -0.95, xR: 1.85, yT: -0.85, yB: 1.4 },
     puzzle: { gx: 120, gy: 64, node: 10, head: [44, 15], root: [14, 14], font: 14, xL: -2.4, xR: 1.9, yT: -1.2, yB: 1.6 },
   };
+  const GRID = { gx: 140, gy: 112, half: [34, 30], sentinel: [13, 11] };
+  const GOFF = { R: [1, 0, 0, -9], L: [-1, 0, 0, 9], D: [0, 1, 9, 0], U: [0, -1, -9, 0] }; // arrows drawn in pairs, as in the reference figure
+  const TITLES = {
+    grid: 'Sudoku 9 × 9 Box (Dancing Links Node Pointers)',
+    sample: 'Dancing Links: exact-cover matrix (7-column sample)',
+    puzzle: 'Dancing Links: exact-cover matrix (current puzzle)',
+  };
   const PHASES = {
-    choose: 'Choose a column', cover: 'Cover', try: 'Try a row', uncover: 'Uncover',
+    setup: 'Setup', choose: 'Choose a column', cover: 'Cover', try: 'Try a row', uncover: 'Uncover',
     backtrack: 'Backtrack', solution: 'Solution found', 'dead-end': 'Dead end', ready: 'Ready',
   };
 
   // ---- state -------------------------------------------------------------------------
-  let mode = 'sample', cfg = LAYOUT.sample;
+  let mode = 'grid', cfg = LAYOUT.sample, gs = null;
   let m = null, cellColumn = null, givens = null, gen = null, ev = null, finished = false;
   let steps = 0, reads = 0, writes = 0, maxDepth = 0;
   let placed = [];                           // row indexes currently chosen by the search
   const glows = new Map();                   // "node:dir" -> { t0, kind }
   let cam = { x: 0, y: 0, z: 1, tx: 0, ty: 0, tz: 1 };
-  let follow = true, playing = false, speed = 1, seeking = false, carry = 0, lastT = 0, raf = 0;
+  let follow = true, playing = false, speed = 1, seeking = false, seekGoal = 'move', carry = 0, lastT = 0, raf = 0;
   let size = { w: 800, h: 600, dpr: 1 }, theme = null, dirty = true, statsDirty = true;
   let ctx = null, observer = null, themeObserver = null;
 
   // ---- geometry ----------------------------------------------------------------------
-  const pos = (n) => ({ x: m.col[n] * cfg.gx, y: m.rowIdx[n] * cfg.gy });
+  const gpos = (n) => (n < 81 ? { x: (n % 9) * GRID.gx, y: Math.floor(n / 9) * GRID.gy }
+    : n < G.COL_H ? { x: -0.85 * GRID.gx, y: (n - G.ROW_H) * GRID.gy }
+    : { x: (n - G.COL_H) * GRID.gx, y: -0.9 * GRID.gy });
+  const mpos = (n) => ({ x: m.col[n] * cfg.gx, y: m.rowIdx[n] * cfg.gy });
+  const pos = (n) => (mode === 'grid' ? gpos(n) : mpos(n));
+  const ghalf = (n) => (n < 81 ? GRID.half : GRID.sentinel);
+  const gmargins = () => ({ xL: -1.3 * GRID.gx, xR: 8.9 * GRID.gx, yT: -1.3 * GRID.gy, yB: 8.9 * GRID.gy });
   function half(n) {
+    if (mode === 'grid') return ghalf(n);
     if (n === 0) return cfg.root;
     if (n <= m.N) return cfg.head;
     return [cfg.node, cfg.node];
   }
-  const margins = () => ({
+  const margins = () => (mode === 'grid' ? gmargins() : {
     xL: cfg.xL * cfg.gx, xR: (m.N + cfg.xR) * cfg.gx,
     yT: cfg.yT * cfg.gy, yB: (m.rowNodes.length + cfg.yB) * cfg.gy,
   });
@@ -51,9 +71,10 @@
   /** Line for pointer `dir` of node n: from its edge to the target's edge, or a stub to the
    *  margin when the pointer wraps around (like the arrows leaving the diagram in a textbook figure). */
   function segment(n, dir) {
-    const t = m[dir][n];
+    const arr = mode === 'grid' ? gs : m;
+    const t = arr[dir][n];
     const p = pos(n), q = pos(t), hs = half(n), ht = half(t);
-    const [dx, dy, ox, oy] = DIRS[dir];
+    const [dx, dy, ox, oy] = (mode === 'grid' ? GOFF : DIRS)[dir];
     const natural = t !== n && (dir === 'R' ? q.x > p.x : dir === 'L' ? q.x < p.x : dir === 'D' ? q.y > p.y : q.y < p.y);
     const x1 = p.x + dx * hs[0] + ox, y1 = p.y + dy * hs[1] + oy;
     let x2, y2;
@@ -71,14 +92,16 @@
 
   function worldBounds() {
     const mg = margins();
+    if (mode === 'grid') return { x0: mg.xL - 30, x1: mg.xR + 30, y0: mg.yT - 20, y1: mg.yB + 20 };
     return { x0: mg.xL - (mode === 'puzzle' ? 130 : 40), x1: mg.xR + 40, y0: mg.yT - 30, y1: mg.yB + 30 };
   }
   function fit() {
     const b = worldBounds();
-    const z = Math.min(size.w / (b.x1 - b.x0), size.h / (b.y1 - b.y0)) * 0.94;
+    const padTop = mode === 'grid' ? 86 : 0; // room for the figure title and legend
+    const z = Math.min(size.w / (b.x1 - b.x0), (size.h - padTop) / (b.y1 - b.y0)) * 0.94;
     cam.z = cam.tz = z;
     cam.x = cam.tx = (b.x0 + b.x1) / 2;
-    cam.y = cam.ty = (b.y0 + b.y1) / 2;
+    cam.y = cam.ty = (b.y0 + b.y1) / 2 - padTop / 2 / z;
     dirty = true;
   }
 
@@ -88,8 +111,8 @@
     const css = getComputedStyle(document.documentElement);
     const v = (name) => css.getPropertyValue(name).trim();
     theme = dark
-      ? { L: '#ff6464', R: '#46c37b', U: '#ffb347', D: '#6f8fff', node: '#202028', head: '#26262e', stroke: '#c9c9d2', text: '#f2f2f3', ghost: '#5a5a66', label: v('--text-2') }
-      : { L: '#ff0000', R: '#008000', U: '#ffa500', D: '#0000ff', node: '#fffff0', head: '#fffff0', stroke: '#111111', text: '#111111', ghost: '#b8b8b0', label: v('--text-2') };
+      ? { gArrow: '#9aa8ff', gNode: '#1c2140', gStroke: '#8b9bff', gText: '#e8ebff', gGiven: '#ffffff', gTent: '#7fe3a6', gCand: '#9aa3d6', L: '#ff6464', R: '#46c37b', U: '#ffb347', D: '#6f8fff', node: '#202028', head: '#26262e', stroke: '#c9c9d2', text: '#f2f2f3', ghost: '#5a5a66', label: v('--text-2') }
+      : { gArrow: '#0f1d6b', gNode: '#e8eeff', gStroke: '#0f1d6b', gText: '#0f1d6b', gGiven: '#0a1450', gTent: '#0a7a3d', gCand: '#5663a8', L: '#ff0000', R: '#008000', U: '#ffa500', D: '#0000ff', node: '#fffff0', head: '#fffff0', stroke: '#111111', text: '#111111', ghost: '#b8b8b0', label: v('--text-2') };
     dirty = true;
   }
 
@@ -116,6 +139,7 @@
   }
 
   function draw(now) {
+    if (mode === 'grid') return drawGrid(now);
     ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
     ctx.clearRect(0, 0, size.w, size.h);
     const tl = toWorld(0, 0), br = toWorld(size.w, size.h);
@@ -215,24 +239,161 @@
     return anyGlow;
   }
 
+
+  /** The 9x9 mesh, drawn like the reference figure: squares (r,c) with paired L/R and U/D arrows. */
+  function drawGrid(now) {
+    ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
+    ctx.clearRect(0, 0, size.w, size.h);
+    const tl = toWorld(0, 0), br = toWorld(size.w, size.h);
+    const vb = { x0: tl.x - 80, y0: tl.y - 80, x1: br.x + 80, y1: br.y + 80 };
+    const z = cam.z;
+    const lw = Math.max(1.4, 1.7 * z) / z;
+    const head = Math.max(9, 7 / z * Math.min(1, z * 1.6));
+
+    ctx.save();
+    ctx.translate(size.w / 2, size.h / 2);
+    ctx.scale(z, z);
+    ctx.translate(-cam.x, -cam.y);
+    ctx.lineJoin = 'round';
+
+    // 1. normal pointers. Neighbour arrows are solid; arrows to a header (row/column ends) are faint.
+    for (let n = 0; n < gs.count; n++) {
+      const sentinel = n >= 81;
+      const dirs = sentinel ? (n < G.COL_H ? ['L', 'R'] : ['U', 'D']) : [];
+      if (!sentinel) {
+        if (G.rowLinked(gs, n)) dirs.push('L', 'R');
+        if (G.colLinked(gs, n)) dirs.push('U', 'D');
+      }
+      for (const dir of dirs) {
+        const g = glows.get(`${n}:${dir}`);
+        if (g && now - g.t0 < GLOW_MS) continue;
+        const s = segment(n, dir);
+        if (!visible(s.x1, s.y1, s.x2, s.y2, vb)) continue;
+        const toHeader = gs[dir][n] >= 81 || sentinel;
+        ctx.globalAlpha = toHeader ? 0.28 : 1;
+        arrow(s.x1, s.y1, s.x2, s.y2, theme.gArrow, lw, head);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // 2. glowing pointers (the colour tells the direction)
+    let anyGlow = false;
+    for (const [key, g] of glows) {
+      const age = now - g.t0;
+      if (age >= GLOW_MS) { glows.delete(key); continue; }
+      anyGlow = true;
+      const [ns, dir] = key.split(':');
+      const s = segment(+ns, dir);
+      const k = 1 - age / GLOW_MS;
+      ctx.globalAlpha = 0.25 + 0.75 * k;
+      arrow(s.x1, s.y1, s.x2, s.y2, theme[dir], lw * (2 + 2.2 * k), head * 1.5, 26 * k * Math.max(1, 1 / z * 0.6));
+      ctx.globalAlpha = 1;
+      arrow(s.x1, s.y1, s.x2, s.y2, '#ffffff', lw * 0.7, 0);
+    }
+
+    // 3. squares
+    const labelPx = 15 * z, candPx = 12 * z;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let n = 0; n < gs.count; n++) {
+      const p = gpos(n), hs = ghalf(n);
+      if (p.x + hs[0] < vb.x0 || p.x - hs[0] > vb.x1 || p.y + hs[1] < vb.y0 || p.y - hs[1] > vb.y1) continue;
+      if (n >= 81) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = theme.gNode; ctx.strokeStyle = theme.gStroke; ctx.lineWidth = 1.2 / z;
+        ctx.fillRect(p.x - hs[0], p.y - hs[1], hs[0] * 2, hs[1] * 2);
+        ctx.strokeRect(p.x - hs[0], p.y - hs[1], hs[0] * 2, hs[1] * 2);
+        if (z * 11 >= 6) { ctx.fillStyle = theme.gText; ctx.font = '11px Georgia, serif'; ctx.fillText(n < G.COL_H ? `r${n - G.ROW_H + 1}` : `c${n - G.COL_H + 1}`, p.x, p.y + 1); }
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const linked = G.isLinked(gs, n);
+      const digit = gs.digit[n];
+      ctx.globalAlpha = linked ? 1 : 0.62;
+      ctx.fillStyle = theme.gNode;
+      ctx.strokeStyle = linked ? theme.gStroke : theme.ghost;
+      ctx.lineWidth = Math.max(1.6, 2 * z) / z;
+      ctx.fillRect(p.x - hs[0], p.y - hs[1], hs[0] * 2, hs[1] * 2);
+      ctx.strokeRect(p.x - hs[0], p.y - hs[1], hs[0] * 2, hs[1] * 2);
+      if (labelPx >= 6) {
+        ctx.fillStyle = theme.gText;
+        ctx.font = '14px Georgia, "Times New Roman", serif';
+        ctx.fillText(`(${Math.floor(n / 9) + 1},${(n % 9) + 1})`, p.x, p.y - hs[1] + 13);
+      }
+      if (digit) {
+        ctx.fillStyle = gs.given[n] ? theme.gGiven : theme.gTent;
+        ctx.font = `${gs.given[n] ? 700 : 600} 30px Georgia, "Times New Roman", serif`;
+        ctx.fillText(String(digit), p.x, p.y + 10);
+      } else if (linked && candPx >= 5.5) {
+        ctx.fillStyle = theme.gCand;
+        ctx.font = '12px ui-monospace, Menlo, Consolas, monospace';
+        const mk = gs.mask[n];
+        for (let d = 1; d <= 9; d++) {
+          if (!(mk & (1 << d))) continue;
+          const cx = p.x + ((d - 1) % 3 - 1) * 15, cy = p.y + 10 + (Math.floor((d - 1) / 3) - 1) * 12;
+          ctx.fillText(String(d), cx, cy);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 4. focus ring
+    if (ev && ev.focus !== undefined) {
+      const p = gpos(ev.focus), hs = ghalf(ev.focus);
+      const pulse = 0.5 + 0.5 * Math.sin(now / 220);
+      ctx.strokeStyle = '#ffd24a';
+      ctx.lineWidth = (2.2 + pulse * 1.6) / z;
+      ctx.shadowColor = '#ffd24a';
+      ctx.shadowBlur = 14;
+      const pad = 5 / z + 2;
+      ctx.strokeRect(p.x - hs[0] - pad, p.y - hs[1] - pad, (hs[0] + pad) * 2, (hs[1] + pad) * 2);
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+    return anyGlow;
+  }
+
+
   // ---- stepping ----------------------------------------------------------------------
   function resetRun() {
-    const built = mode === 'sample' ? A.sampleMatrix() : A.puzzleMatrix(givens);
-    m = built.matrix;
-    cellColumn = built.cellColumn;
-    cfg = LAYOUT[mode];
-    gen = A.run(m);
+    if (mode === 'grid') {
+      gs = G.create(givens);
+      m = null; cellColumn = null;
+      gen = G.run(gs);
+    } else {
+      const built = mode === 'sample' ? A.sampleMatrix() : A.puzzleMatrix(givens);
+      m = built.matrix;
+      cellColumn = built.cellColumn;
+      cfg = LAYOUT[mode];
+      gen = A.run(m);
+      gs = null;
+    }
     ev = null; finished = false; steps = reads = writes = maxDepth = 0;
     placed = []; glows.clear(); playing = false; seeking = false; carry = 0;
     $('algo-phase').textContent = PHASES.ready;
     $('algo-phase').dataset.phase = 'ready';
-    $('algo-caption').textContent = mode === 'sample'
-      ? 'This is the 7-column example from the textbook diagram. Press Play or Step. Each pointer glows as it is followed.'
-      : 'This is the exact-cover matrix of your current puzzle, with the given digits already removed. Press Play, Step, or Next move.';
+    $('algo-pointer').textContent = '';
+    $('algo-caption').textContent = mode === 'grid'
+      ? 'Every square (r,c) has four pointers: L, R, U and D. Filled squares are unlinked from the mesh and the empty ones skip over them. Press Play or Step and watch which pointer glows.'
+      : mode === 'sample'
+        ? 'This is the 7-column example from the textbook diagram. Press Play or Step. Each pointer glows as it is followed.'
+        : 'This is the exact-cover matrix of your current puzzle, with the given digits already removed. Press Play, Step, or Next move.';
+    $('algo-stage').dataset.mode = mode;
+    $('algo-figure-title').textContent = TITLES[mode];
     fit();
     updateBoard();
     syncButtons();
     statsDirty = true;
+  }
+
+  /** "R[(3,4)] → (3,5)": which pointer is in use right now, and where it points. */
+  function showPointer(e) {
+    const g = e.glows && e.glows[0];
+    if (!g) { $('algo-pointer').textContent = ''; return; }
+    const arr = mode === 'grid' ? gs : m;
+    const nm = (n) => (mode === 'grid' ? G.nameOf(n) : n === 0 ? 'h' : n <= m.N ? m.columns[n - 1].name : `node ${n}`);
+    $('algo-pointer').textContent = `${g.kind === 'write' ? 'write' : 'read'}  ${g.dir}[${nm(g.node)}] → ${nm(arr[g.dir][g.node])}`;
+    $('algo-pointer').dataset.dir = g.dir;
   }
 
   function apply(e) {
@@ -244,8 +405,11 @@
       if (g.kind === 'read') reads++; else writes++;
     }
     if (e.depth > maxDepth) maxDepth = e.depth;
-    if (e.place !== undefined && !placed.includes(e.place)) placed.push(e.place);
-    if (e.unplace !== undefined) placed = placed.filter((x) => x !== e.unplace);
+    if (mode !== 'grid') {
+      if (e.place !== undefined && !placed.includes(e.place)) placed.push(e.place);
+      if (e.unplace !== undefined) placed = placed.filter((x) => x !== e.unplace);
+    }
+    showPointer(e);
     $('algo-phase').textContent = PHASES[e.phase] || e.phase;
     $('algo-phase').dataset.phase = e.phase;
     $('algo-caption').textContent = e.text;
@@ -253,6 +417,7 @@
       const p = pos(e.focus);
       cam.tx = p.x; cam.ty = p.y;
       if (mode === 'puzzle') cam.tz = Math.max(cam.tz, 0.8);
+      if (mode === 'grid') cam.tz = Math.max(cam.tz, 0.9);
     }
     statsDirty = true;
     dirty = true;
@@ -267,11 +432,12 @@
     return true;
   }
 
-  const isMove = (e) => e.phase === 'try' && e.place !== undefined && e.glows[0] && e.glows[0].dir === 'D' ||
+  const isMove = (e) => e.move === true || e.phase === 'try' && e.place !== undefined && e.glows[0] && e.glows[0].dir === 'D' ||
     e.phase === 'solution' || e.phase === 'dead-end' || (e.phase === 'backtrack' && e.unplace !== undefined);
 
   /** Run (in short slices, so the page stays responsive) until the next row is tried or undone. */
-  function seekNextMove() {
+  function seekTo(goal) {
+    seekGoal = goal;
     seeking = true; playing = false;
     syncButtons();
   }
@@ -286,7 +452,7 @@
       let guard = 0;
       while (performance.now() < until && guard++ < 200000) {
         if (!advance()) { seeking = false; break; }
-        if (isMove(ev)) { seeking = false; break; }
+        if (seekGoal === 'solution' ? ev.phase === 'solution' : isMove(ev)) { seeking = false; break; }
       }
       if (!seeking) syncButtons();
     } else if (playing) {
@@ -376,20 +542,36 @@
     $('algo-play').disabled = busy || seeking;
     $('algo-step').disabled = busy || seeking;
     $('algo-next').disabled = busy || seeking || mode === 'sample';
-    $('algo-next').title = mode === 'sample' ? 'Next move is for the puzzle view; the sample is short enough to step through' : 'Run quickly until the next row is tried or undone';
+    $('algo-next').title = mode === 'sample' ? 'Next move is for the larger views; the sample is short enough to step through' : 'Run quickly until the next digit is tried or undone';
+    $('algo-finish').disabled = busy || seeking;
   }
 
   // ---- mode, open, close -------------------------------------------------------------
+  function exampleGrid() { return DLX.cloneGrid(DLX.constants.EXAMPLE_PUZZLE); }
+
   function setMode(next) {
-    if (next === 'puzzle') {
+    if (next === 'puzzle' || next === 'grid') {
       const assessment = DLX.assessBoard(DLX.state.grid);
-      if (assessment.state === 'conflict') { DLX.toast('Fix the conflicting cells first, then open the puzzle view.', { tone: 'warn' }); return; }
-      if (assessment.state === 'complete') { DLX.toast('The board is already complete: there is nothing left to cover.', { tone: 'warn' }); return; }
-      givens = DLX.cloneGrid(DLX.state.grid);
+      const fallback = next === 'grid';
+      if (assessment.state === 'conflict') {
+        if (!fallback) { DLX.toast('Fix the conflicting cells first, then open the puzzle view.', { tone: 'warn' }); return; }
+        DLX.toast('The board has conflicts, so the built-in example puzzle is shown instead.', { tone: 'warn', duration: 4000 });
+        givens = exampleGrid();
+      } else if (assessment.state === 'complete') {
+        if (!fallback) { DLX.toast('The board is already complete: there is nothing left to cover.', { tone: 'warn' }); return; }
+        DLX.toast('The board is already complete, so the built-in example puzzle is shown instead.', { tone: 'warn', duration: 4000 });
+        givens = exampleGrid();
+      } else if (fallback && DLX.isGridEmpty(DLX.state.grid)) {
+        DLX.toast('The board is empty, so the built-in example puzzle is shown.', { duration: 3500 });
+        givens = exampleGrid();
+      } else {
+        givens = DLX.cloneGrid(DLX.state.grid);
+      }
     }
     mode = next;
-    $('algo-mode-sample').setAttribute('aria-pressed', String(mode === 'sample'));
-    $('algo-mode-puzzle').setAttribute('aria-pressed', String(mode === 'puzzle'));
+    for (const [id, name] of [['algo-mode-grid', 'grid'], ['algo-mode-sample', 'sample'], ['algo-mode-puzzle', 'puzzle']]) {
+      $(id).setAttribute('aria-pressed', String(mode === name));
+    }
     follow = mode === 'puzzle';
     $('algo-follow').checked = follow;
     resetRun();
@@ -416,7 +598,7 @@
     ctx = $('algo-canvas').getContext('2d');
     readTheme();
     resize();
-    setMode(mode === 'puzzle' && givens ? 'puzzle' : 'sample');
+    setMode(mode);
     cancelAnimationFrame(raf);
     lastT = performance.now();
     raf = requestAnimationFrame(frame);
@@ -434,12 +616,14 @@
     $('btn-algo').addEventListener('click', open);
     $('algo-close').addEventListener('click', close);
     $('algo-dialog').addEventListener('close', () => { playing = false; seeking = false; cancelAnimationFrame(raf); });
+    $('algo-mode-grid').addEventListener('click', () => setMode('grid'));
     $('algo-mode-sample').addEventListener('click', () => setMode('sample'));
     $('algo-mode-puzzle').addEventListener('click', () => setMode('puzzle'));
     $('algo-restart').addEventListener('click', resetRun);
     $('algo-play').addEventListener('click', () => { if (!finished) { playing = !playing; carry = 1; syncButtons(); } });
     $('algo-step').addEventListener('click', () => { playing = false; advance(); syncButtons(); });
-    $('algo-next').addEventListener('click', seekNextMove);
+    $('algo-next').addEventListener('click', () => seekTo('move'));
+    $('algo-finish').addEventListener('click', () => seekTo('solution'));
     $('algo-fit').addEventListener('click', fit);
     $('algo-follow').addEventListener('change', (e) => { follow = e.target.checked; });
     for (const b of document.querySelectorAll('#algo-speed .speed-btn')) {

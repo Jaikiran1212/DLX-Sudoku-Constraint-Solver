@@ -1,0 +1,9 @@
+{
+  "outputDirectory": "frontend",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://dlx-sudoku-backend.onrender.com/api/$1"
+    }
+  ]
+}

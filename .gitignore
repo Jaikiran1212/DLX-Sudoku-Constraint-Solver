@@ -1,6 +1,6 @@
+.env
 node_modules/
 backend/build/
-dist/
-*.log
+build*/
 .DS_Store
-.vscode/
+*.log

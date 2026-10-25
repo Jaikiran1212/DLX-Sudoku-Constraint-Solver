@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - migrate-final-dlx-solver
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and test (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install C++ and Drogon dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            libdrogon-dev \
+            libjsoncpp-dev \
+            uuid-dev \
+            zlib1g-dev \
+            libssl-dev \
+            libpq-dev \
+            libsqlite3-dev \
+            libmariadb-dev \
+            libhiredis-dev \
+            libyaml-cpp-dev \
+            libbrotli-dev \
+            libc-ares-dev \
+            curl
+
+      - name: Install JavaScript test dependencies
+        run: npm ci
+
+      - name: Build backend and run C++ unit tests
+        run: npm run backend:build
+
+      - name: Run frontend tests
+        run: npm run test:frontend
+
+      - name: Run API integration tests
+        run: npm run test:api
+
+      - name: Run UI smoke tests
+        run: npm run test:ui
+
+      - name: Validate production Docker image
+        run: docker build --tag dlx-sudoku-backend:ci .
