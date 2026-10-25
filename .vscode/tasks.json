@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Build backend", "type": "shell", "command": "scripts/build-backend.sh", "group": { "kind": "build", "isDefault": true }, "problemMatcher": ["$gcc"] },
+    { "label": "Run backend + frontend", "type": "shell", "command": "scripts/run.sh", "isBackground": true, "problemMatcher": [] },
+    { "label": "Test: C++ unit tests", "type": "shell", "command": "ctest --test-dir backend/build --output-on-failure", "group": "test" },
+    { "label": "Test: frontend logic", "type": "shell", "command": "node frontend/tests/run-tests.js", "group": "test" },
+    { "label": "Test: API end-to-end", "type": "shell", "command": "scripts/test-api.sh", "group": "test" },
+    { "label": "Test: UI smoke (jsdom)", "type": "shell", "command": "scripts/test-ui.sh", "group": "test" }
+  ]
+}

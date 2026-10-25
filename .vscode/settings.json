@@ -1,0 +1,6 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/backend",
+  "cmake.useCMakePresets": "always",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/backend/build/compile_commands.json",
+  "files.associations": { "*.h": "cpp" }
+}
