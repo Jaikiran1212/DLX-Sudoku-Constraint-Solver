@@ -1,0 +1,12 @@
+
+.git
+.github
+node_modules
+frontend
+uploads
+.vscode
+.env
+.env.*
+!.env.example
+backend/build
+backend/.git

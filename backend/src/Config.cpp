@@ -49,9 +49,17 @@ Config Config::fromLookup(const Lookup& lookup) {
     Config cfg;
 
     if (auto v = lookup("DLX_HOST"); v && !trim(*v).empty()) cfg.host = trim(*v);
-    if (auto v = lookup("DLX_PORT"); v && !trim(*v).empty()) {
-        cfg.port = static_cast<std::uint16_t>(parseUnsigned("DLX_PORT", *v, 1, 65535));
+    const auto dlxPort = lookup("DLX_PORT");
+    const auto platformPort = lookup("PORT");
+
+    if (dlxPort && !trim(*dlxPort).empty()) {
+        cfg.port = static_cast<std::uint16_t>(
+            parseUnsigned("DLX_PORT", *dlxPort, 1, 65535));
+    } else if (platformPort && !trim(*platformPort).empty()) {
+        cfg.port = static_cast<std::uint16_t>(
+            parseUnsigned("PORT", *platformPort, 1, 65535));
     }
+
     // An explicitly empty DLX_CORS_ORIGINS means "allow no cross-origin callers".
     if (auto v = lookup("DLX_CORS_ORIGINS")) cfg.corsOrigins = splitList(*v);
     if (auto v = lookup("DLX_STATIC_DIR")) cfg.staticDir = trim(*v);

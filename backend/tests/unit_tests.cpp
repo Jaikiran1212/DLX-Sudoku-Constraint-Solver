@@ -290,6 +290,22 @@ DROGON_TEST(ConfigReadsOverrides) {
     CHECK(c.logLevel == "warn");
 }
 
+DROGON_TEST(ConfigUsesPlatformPortWhenDlxPortIsUnset) {
+    auto c = configFrom({{"PORT", "10000"}});
+    CHECK(c.port == 10000);
+}
+
+DROGON_TEST(ConfigDlxPortOverridesPlatformPort) {
+    auto c = configFrom({{"PORT", "10000"}, {"DLX_PORT", "9090"}});
+    CHECK(c.port == 9090);
+}
+
+DROGON_TEST(ConfigRejectsInvalidPlatformPort) {
+    CHECK_THROWS_AS(configFrom({{"PORT", "70000"}}), ConfigError);
+    CHECK_THROWS_AS(configFrom({{"PORT", "invalid"}}), ConfigError);
+}
+
+
 DROGON_TEST(ConfigRejectsBadValues) {
     CHECK_THROWS_AS(configFrom({{"DLX_PORT", "70000"}}), ConfigError);
     CHECK_THROWS_AS(configFrom({{"DLX_PORT", "80x"}}), ConfigError);
